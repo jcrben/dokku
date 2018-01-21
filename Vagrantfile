@@ -17,6 +17,9 @@ end
 
 Vagrant::configure("2") do |config|
   config.ssh.forward_agent = true
+  config.ssh.username = 'vagrant'
+  config.ssh.password = 'vagrant'
+  # config.ssh.insert_key = 'true'
 
   config.vm.box = BOX_NAME
 
@@ -34,6 +37,8 @@ Vagrant::configure("2") do |config|
   end
 
   config.vm.define "empty", autostart: false
+
+  
 
   config.vm.define "dokku", primary: true do |vm|
     vm.vm.synced_folder File.dirname(__FILE__), "/root/dokku"
@@ -58,6 +63,15 @@ Vagrant::configure("2") do |config|
         echo 'set show-all-if-ambiguous on' >> /root/.inputrc
         echo 'set completion-ignore-case on' >> /root/.inputrc
       EOT
+
+    if Pathname.new(PUBLIC_KEY_PATH).exist?
+      config.vm.provision :file, source: PUBLIC_KEY_PATH, destination: '/tmp/id_rsa.pub'
+      # why do this?
+      config.vm.provision :shell, :inline => "rm -f /root/.ssh/authorized_keys && mkdir -p /root/.ssh && sudo cp /tmp/id_rsa.pub /root/.ssh/authorized_keys"
+    end
+    
+    vm.vm.provision :shell, :inline => "dokku domains:set-global dokku.me"
+    vm.vm.provision :shell, :inline => "cat /root/.ssh/authorized_keys | dokku ssh-keys:add pub-key"
     end
   end
 
@@ -104,10 +118,5 @@ Vagrant::configure("2") do |config|
     vm.vm.hostname = "#{DOKKU_DOMAIN}"
     vm.vm.network :private_network, ip: DOKKU_IP
     vm.vm.provision :shell, :inline => "cd /dokku && make arch-all", privileged: false
-  end
-
-  if Pathname.new(PUBLIC_KEY_PATH).exist?
-    config.vm.provision :file, source: PUBLIC_KEY_PATH, destination: '/tmp/id_rsa.pub'
-    config.vm.provision :shell, :inline => "rm -f /root/.ssh/authorized_keys && mkdir -p /root/.ssh && sudo cp /tmp/id_rsa.pub /root/.ssh/authorized_keys"
   end
 end
